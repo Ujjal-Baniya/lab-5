@@ -1,0 +1,50 @@
+body {
+    background-color: #f8f9fa;
+    padding-bottom: 20px;
+}
+
+#map {
+    height: 500px;
+    width: 100%;
+}
+
+.card {
+    margin-bottom: 20px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.card-header {
+    font-weight: bold;
+}
+
+#status {
+    transition: all 0.3s ease;
+}
+
+.connected-status {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.disconnected-status {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.connecting-status {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.temperature-marker {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    #map {
+        height: 300px;
+    }
+}
