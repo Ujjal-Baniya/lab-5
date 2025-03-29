@@ -1,4 +1,3 @@
-
 let map;
 let marker;
 let watchId;
@@ -53,9 +52,28 @@ function startWatchingPosition() {
     }
 }
 
-function updateStatus(message) {
+function updateStatus(message, statusType) {
     statusDiv.textContent = "Status: " + message;
     console.log("Status updated:", message);
+    
+    statusDiv.classList.remove(
+        "alert-success", "alert-danger", "alert-warning", 
+        "connected-status", "disconnected-status", "connecting-status"
+    );
+    
+    switch(statusType) {
+        case "connected":
+            statusDiv.classList.add("alert-success", "connected-status");
+            break;
+        case "disconnected":
+            statusDiv.classList.add("alert-danger", "disconnected-status");
+            break;
+        case "connecting":
+            statusDiv.classList.add("alert-warning", "connecting-status");
+            break;
+        default:
+            statusDiv.classList.add("alert-secondary");
+    }
 }
 
 function toggleConnection() {
@@ -77,21 +95,16 @@ function connect() {
     
     client = new Paho.MQTT.Client(host, port, clientId);
     
-
     client.onConnectionLost = onConnectionLost;
     client.onMessageArrived = onMessageArrived;
     
-
     const connectOptions = {
         onSuccess: onConnect,
         onFailure: onFailure,
         useSSL: port === 8081,
-        keepAliveInterval: 60, 
-        cleanSession: true,
-        reconnect: false 
+        keepAliveInterval: 60,
+        cleanSession: true
     };
-    
-    delete connectOptions.reconnect;
     
     try {
         client.connect(connectOptions);
@@ -160,14 +173,14 @@ function onConnectionLost(responseObject) {
             updateStatus("Attempting to reconnect...", "connecting");
             connect();
         }
-    }, 5000); 
+    }, 5000);
 }
-
 
 function onMessageArrived(message) {
     console.log("Message received: ", message.payloadString);
     try {
-        const data = JSON.parse(message.payloadString);
+        const payloadString = message.payloadString.trim();
+        const data = JSON.parse(payloadString);
         if (data.type === "Feature" && data.geometry && data.geometry.type === "Point") {
             updateMapWithData(data);
         }
@@ -199,7 +212,8 @@ function shareStatus() {
                     }
                 };
                 
-                const message = new Paho.MQTT.Message(JSON.stringify(geoJson));
+                const payload = JSON.stringify(geoJson);
+                const message = new Paho.MQTT.Message(payload);
                 message.destinationName = topicInput.value;
                 client.send(message);
                 
@@ -219,17 +233,17 @@ function shareStatus() {
 }
 
 function getRandomTemperature() {
-    return Math.floor(Math.random() * 100) - 40; 
+    return Math.floor(Math.random() * 100) - 40;
 }
 
 function getTemperatureIcon(temperature) {
     let color;
     if (temperature < 10) {
-        color = 'blue'; 
+        color = 'blue';
     } else if (temperature < 30) {
-        color = 'green'; 
+        color = 'green';
     } else {
-        color = 'red'; 
+        color = 'red';
     }
     
     return L.divIcon({
@@ -264,29 +278,6 @@ function updateMapWithData(data) {
         </div>
     `;
     marker.bindPopup(popupContent);
-}
-
-function updateStatus(message, statusType) {
-    statusDiv.textContent = "Status: " + message;
-    
-    statusDiv.classList.remove(
-        "alert-success", "alert-danger", "alert-warning", 
-        "connected-status", "disconnected-status", "connecting-status"
-    );
-    
-    switch(statusType) {
-        case "connected":
-            statusDiv.classList.add("alert-success", "connected-status");
-            break;
-        case "disconnected":
-            statusDiv.classList.add("alert-danger", "disconnected-status");
-            break;
-        case "connecting":
-            statusDiv.classList.add("alert-warning", "connecting-status");
-            break;
-        default:
-            statusDiv.classList.add("alert-secondary");
-    }
 }
 
 function init() {
