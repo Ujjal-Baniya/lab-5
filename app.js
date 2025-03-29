@@ -2,6 +2,8 @@
 let map;
 let marker;
 let watchId;
+let client;
+let isConnected = false;
 
 const hostInput = document.getElementById('host');
 const portInput = document.getElementById('port');
@@ -56,13 +58,99 @@ function updateStatus(message) {
     console.log("Status updated:", message);
 }
 
+function toggleConnection() {
+    if (isConnected) {
+        disconnect();
+    } else {
+        connect();
+    }
+}
+
+function connect() {
+    const host = hostInput.value;
+    const port = parseInt(portInput.value);
+    const clientId = "clientId-" + Math.random().toString(16).substr(2, 8);
+    
+    hostInput.disabled = true;
+    portInput.disabled = true;
+    topicInput.disabled = true;
+    
+    client = new Paho.MQTT.Client(host, port, clientId);
+    
+    client.onConnectionLost = onConnectionLost;
+    client.onMessageArrived = onMessageArrived;
+    
+    const connectOptions = {
+        onSuccess: onConnect,
+        onFailure: onFailure,
+        useSSL: true,
+        reconnect: true
+    };
+    
+    client.connect(connectOptions);
+    
+    updateStatus("Connecting...", "connecting");
+}
+
+function disconnect() {
+    if (client && isConnected) {
+        client.disconnect();
+        isConnected = false;
+        connectBtn.textContent = "Start Connection";
+        connectBtn.classList.remove("btn-danger");
+        connectBtn.classList.add("btn-success");
+        shareBtn.disabled = true;
+        updateStatus("Disconnected", "disconnected");
+        
+        hostInput.disabled = false;
+        portInput.disabled = false;
+        topicInput.disabled = false;
+    }
+}
+
+function onConnect() {
+    isConnected = true;
+    connectBtn.textContent = "End Connection";
+    connectBtn.classList.remove("btn-success");
+    connectBtn.classList.add("btn-danger");
+    shareBtn.disabled = false;
+    
+    const topic = topicInput.value;
+    client.subscribe(topic);
+    updateStatus(`Connected to ${topic}`, "connected");
+    
+    startWatchingPosition();
+}
+
+function onFailure(error) {
+    updateStatus("Connection failed: " + error.errorMessage, "disconnected");
+    hostInput.disabled = false;
+    portInput.disabled = false;
+    topicInput.disabled = false;
+}
+
+function onConnectionLost(responseObject) {
+    if (responseObject.errorCode !== 0) {
+        updateStatus("Connection lost: " + responseObject.errorMessage, "disconnected");
+    }
+    isConnected = false;
+    connectBtn.textContent = "Start Connection";
+    connectBtn.classList.remove("btn-danger");
+    connectBtn.classList.add("btn-success");
+    shareBtn.disabled = true;
+    
+    hostInput.disabled = false;
+    portInput.disabled = false;
+    topicInput.disabled = false;
+}
+
 function init() {
     topicInput.value = 'ENGO651/ujjal_baniya/my_temperature';
     initMap();
     
-    startWatchingPosition();
+    connectBtn.addEventListener('click', toggleConnection);
     
-    console.log("Application initialized with geolocation");
+    console.log("Application initialized with MQTT connection");
 }
 
 document.addEventListener('DOMContentLoaded', init);
