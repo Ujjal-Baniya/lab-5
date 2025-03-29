@@ -77,19 +77,31 @@ function connect() {
     
     client = new Paho.MQTT.Client(host, port, clientId);
     
+
     client.onConnectionLost = onConnectionLost;
     client.onMessageArrived = onMessageArrived;
     
+
     const connectOptions = {
         onSuccess: onConnect,
         onFailure: onFailure,
-        useSSL: true,
-        reconnect: true
+        useSSL: port === 8081,
+        keepAliveInterval: 60, 
+        cleanSession: true,
+        reconnect: false 
     };
     
-    client.connect(connectOptions);
+    delete connectOptions.reconnect;
     
-    updateStatus("Connecting...", "connecting");
+    try {
+        client.connect(connectOptions);
+        updateStatus("Connecting...", "connecting");
+    } catch (error) {
+        updateStatus("Connection error: " + error.message, "disconnected");
+        hostInput.disabled = false;
+        portInput.disabled = false;
+        topicInput.disabled = false;
+    }
 }
 
 function disconnect() {
@@ -142,6 +154,116 @@ function onConnectionLost(responseObject) {
     hostInput.disabled = false;
     portInput.disabled = false;
     topicInput.disabled = false;
+    
+    setTimeout(() => {
+        if (!isConnected) {
+            updateStatus("Attempting to reconnect...", "connecting");
+            connect();
+        }
+    }, 5000); 
+}
+
+
+function onMessageArrived(message) {
+    console.log("Message received: ", message.payloadString);
+    try {
+        const data = JSON.parse(message.payloadString);
+        if (data.type === "Feature" && data.geometry && data.geometry.type === "Point") {
+            updateMapWithData(data);
+        }
+    } catch (e) {
+        console.error("Error parsing message: ", e);
+    }
+}
+
+function shareStatus() {
+    if (!isConnected) return;
+    
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const coords = position.coords;
+                const temperature = getRandomTemperature();
+                
+                const geoJson = {
+                    type: "Feature",
+                    properties: {
+                        temperature: temperature,
+                        timestamp: new Date().toISOString(),
+                        student: "Ujjal Baniya",
+                        course: "ENGO651"
+                    },
+                    geometry: {
+                        type: "Point",
+                        coordinates: [coords.longitude, coords.latitude]
+                    }
+                };
+                
+                const message = new Paho.MQTT.Message(JSON.stringify(geoJson));
+                message.destinationName = topicInput.value;
+                client.send(message);
+                
+                updateStatus(`Status shared (${temperature}°C)`, "connected");
+                
+                if (marker) {
+                    marker.setIcon(getTemperatureIcon(temperature));
+                    marker.bindPopup(`Current temperature: ${temperature}°C`).openPopup();
+                }
+            },
+            (error) => {
+                console.error("Geolocation error: ", error);
+                updateStatus("Geolocation error: " + error.message, "disconnected");
+            }
+        );
+    }
+}
+
+function getRandomTemperature() {
+    return Math.floor(Math.random() * 100) - 40; 
+}
+
+function getTemperatureIcon(temperature) {
+    let color;
+    if (temperature < 10) {
+        color = 'blue'; 
+    } else if (temperature < 30) {
+        color = 'green'; 
+    } else {
+        color = 'red'; 
+    }
+    
+    return L.divIcon({
+        className: 'temperature-marker',
+        html: `<div style="background-color: ${color}; width: 20px; height: 20px; border-radius: 50%; border: 2px solid white;"></div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+    });
+}
+
+function updateMapWithData(data) {
+    const coords = data.geometry.coordinates;
+    const temperature = data.properties.temperature;
+    
+    map.setView([coords[1], coords[0]], 15);
+    
+    if (!marker) {
+        marker = L.marker([coords[1], coords[0]], {
+            icon: getTemperatureIcon(temperature)
+        }).addTo(map);
+    } else {
+        marker.setLatLng([coords[1], coords[0]]);
+        marker.setIcon(getTemperatureIcon(temperature));
+    }
+    
+    const popupContent = `
+        <div>
+            <strong>Temperature:</strong> ${temperature}°C<br>
+            <strong>Student:</strong> Ujjal Baniya<br>
+            <strong>Course:</strong> ENGO651<br>
+            <small>${new Date(data.properties.timestamp).toLocaleString()}</small>
+        </div>
+    `;
+    marker.bindPopup(popupContent);
 }
 
 function init() {
@@ -149,8 +271,9 @@ function init() {
     initMap();
     
     connectBtn.addEventListener('click', toggleConnection);
+    shareBtn.addEventListener('click', shareStatus);
     
-    console.log("Application initialized with MQTT connection");
+    console.log("Application initialized with full functionality");
 }
 
 document.addEventListener('DOMContentLoaded', init);
