@@ -3,6 +3,7 @@ let marker;
 let watchId;
 let client;
 let isConnected = false;
+let shouldReconnect = false;
 
 const hostInput = document.getElementById('host');
 const portInput = document.getElementById('port');
@@ -78,8 +79,10 @@ function updateStatus(message, statusType) {
 
 function toggleConnection() {
     if (isConnected) {
+        shouldReconnect = false;
         disconnect();
     } else {
+        shouldReconnect = true;
         connect();
     }
 }
@@ -152,6 +155,15 @@ function onFailure(error) {
     hostInput.disabled = false;
     portInput.disabled = false;
     topicInput.disabled = false;
+    
+    if (shouldReconnect) {
+        setTimeout(() => {
+            if (!isConnected && shouldReconnect) {
+                updateStatus("Attempting to reconnect...", "connecting");
+                connect();
+            }
+        }, 5000);
+    }
 }
 
 function onConnectionLost(responseObject) {
@@ -168,21 +180,24 @@ function onConnectionLost(responseObject) {
     portInput.disabled = false;
     topicInput.disabled = false;
     
-    setTimeout(() => {
-        if (!isConnected) {
-            updateStatus("Attempting to reconnect...", "connecting");
-            connect();
-        }
-    }, 5000);
+    if (shouldReconnect) {
+        setTimeout(() => {
+            if (!isConnected && shouldReconnect) {
+                updateStatus("Attempting to reconnect...", "connecting");
+                connect();
+            }
+        }, 5000);
+    }
 }
 
 function onMessageArrived(message) {
-    console.log("Message received: ", message.payloadString);
+    console.log("Message received on topic:", message.destinationName, "Payload:", message.payloadString);
     try {
         const payloadString = message.payloadString.trim();
         const data = JSON.parse(payloadString);
         if (data.type === "Feature" && data.geometry && data.geometry.type === "Point") {
             updateMapWithData(data);
+            updateStatus(`Message received on ${message.destinationName}`, "connected");
         }
     } catch (e) {
         console.error("Error parsing message: ", e);
