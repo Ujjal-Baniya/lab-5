@@ -266,14 +266,41 @@ function updateMapWithData(data) {
     marker.bindPopup(popupContent);
 }
 
+function updateStatus(message, statusType) {
+    statusDiv.textContent = "Status: " + message;
+    
+    statusDiv.classList.remove(
+        "alert-success", "alert-danger", "alert-warning", 
+        "connected-status", "disconnected-status", "connecting-status"
+    );
+    
+    switch(statusType) {
+        case "connected":
+            statusDiv.classList.add("alert-success", "connected-status");
+            break;
+        case "disconnected":
+            statusDiv.classList.add("alert-danger", "disconnected-status");
+            break;
+        case "connecting":
+            statusDiv.classList.add("alert-warning", "connecting-status");
+            break;
+        default:
+            statusDiv.classList.add("alert-secondary");
+    }
+}
+
 function init() {
     topicInput.value = 'ENGO651/ujjal_baniya/my_temperature';
+    
     initMap();
     
     connectBtn.addEventListener('click', toggleConnection);
     shareBtn.addEventListener('click', shareStatus);
     
-    console.log("Application initialized with full functionality");
+    shareBtn.disabled = true;
+    updateStatus("Ready to connect", "disconnected");
+    
+    console.log("Application fully initialized");
 }
 
 document.addEventListener('DOMContentLoaded', init);
